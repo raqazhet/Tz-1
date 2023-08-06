@@ -1,14 +1,19 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
 	"sync"
-	"time"
+	"syscall"
 
 	"tzregion/config"
+	"tzregion/repository"
 	"tzregion/repository/mongodb"
+	"tzregion/service"
+	"tzregion/transport/http"
+	"tzregion/transport/http/handler"
 
 	"go.uber.org/zap"
 )
@@ -39,15 +44,33 @@ func run() error {
 			log.Fatal(err)
 		}
 	}(l)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 	// repo layer
-	client, err := mongodb.Dial(constructorUri(cfg))
+	db, err := mongodb.Dial(constructorUri(cfg))
 	if err != nil {
 		return err
 	}
-	defer client.Disconnect(ctx)
+	repotodo := repository.NewRepository(db)
+	// service layer
+	serviceTodo := service.NewService(repotodo, l)
+	// handler layer
+	handler := handler.NewHandler(serviceTodo, l)
+	// http server instance
+	httpServer := http.NewServer(cfg, handler)
+	l.Info("Start app", zap.String("port", cfg.AppPort))
+	httpServer.StartServer()
 
+	// grace full shutdown
+	quite := make(chan os.Signal, 1)
+	signal.Notify(quite, syscall.SIGINT, syscall.SIGTERM)
+	select {
+	case s := <-quite:
+		l.Info("signal accepted: ", zap.String("signal", s.String()))
+	case err := <-httpServer.Notify:
+		l.Info("server closing", zap.Error(err))
+	}
+	if err := httpServer.Shutdown(); err != nil {
+		return fmt.Errorf("error while shutting down server: %s", err)
+	}
 	return nil
 }
 

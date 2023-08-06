@@ -46,7 +46,7 @@ func (r *TodoRepo) CreateTodo(ctx context.Context, todo *model.Todo) error {
 	return nil
 }
 
-func (r *TodoRepo) UpdateTodoById(ctx context.Context, Id string, todo model.Todo) error {
+func (r *TodoRepo) UpdateTodoById(ctx context.Context, Id string, todo *model.Todo) error {
 	filter := bson.M{"_id": Id}
 	updateQuery := bson.M{"$set": bson.M{"title": todo.Title, "activeAt": todo.ActiveAt, "status": todo.Status}}
 	res, err := r.collection.UpdateOne(ctx, filter, updateQuery)
@@ -73,6 +73,21 @@ func (r *TodoRepo) DeleteTodoById(ctx context.Context, id string) error {
 	return nil
 }
 
+// func (r *TodoRepo) UpdateStatusDone(ctx context.Context, Id, status string) error {
+// 	filter := bson.M{"_id": Id}
+// 	update := bson.M{"$set": bson.M{"status": "done"}}
+// 	res, err := r.collection.UpdateOne(ctx, filter, update)
+// 	if err != nil {
+// 		log.Printf("failed to status done: %v", err)
+// 		return err
+// 	}
+// 	if res.MatchedCount == 0 {
+// 		return err
+// 	}
+// 	return nil
+// }
+
+// FindAll todolists Where status =Active and activeAt<=time.now()
 func (r *TodoRepo) FindAll(ctx context.Context, status string) ([]*model.Todo, error) {
 	filter := bson.M{}
 	if status != "" {
@@ -93,15 +108,15 @@ func (r *TodoRepo) FindAll(ctx context.Context, status string) ([]*model.Todo, e
 	return todos, nil
 }
 
-func (r *TodoRepo) FindByTitleAndActiveAt(ctx context.Context, title string, activeAt time.Time) (model.Todo, error) {
+func (r *TodoRepo) FindByTitleAndActiveAt(ctx context.Context, title string, activeAt time.Time) (*model.Todo, error) {
 	filter := bson.M{"title": title, "activeAt": activeAt}
 	var todo model.Todo
 	err := r.collection.FindOne(ctx, filter).Decode(&todo)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return model.Todo{}, err
+			return nil, err
 		}
-		return model.Todo{}, err
+		return nil, err
 	}
-	return todo, nil
+	return &todo, nil
 }

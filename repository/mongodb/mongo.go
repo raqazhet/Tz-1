@@ -8,7 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func Dial(uri string) (*mongo.Client, error) {
+func Dial(uri string) (*mongo.Database, error) {
 	// Set up a context to control the connection's lifetime
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -19,10 +19,12 @@ func Dial(uri string) (*mongo.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer client.Disconnect(ctx)
 	// Check if the connection was successful
 	err = client.Ping(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect ot redis: %w", err)
 	}
-	return client, nil
+	db := client.Database("todo-list")
+	return db, nil
 }
