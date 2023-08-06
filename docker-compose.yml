@@ -1,0 +1,30 @@
+version: "3.9"
+
+networks:
+  internal:
+    driver: bridge
+
+services:
+  mongo:
+    image: mongo
+    restart: always
+    environment:
+      - MONGO_DB=todo
+      - MONGO_USER=region
+      - MONGO_PASSWORD=qwerty
+    networks:
+      - internal
+    ports:
+      - 27016:27016
+
+  app:
+    build: .
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=mongo
+    networks:
+      - internal
+    depends_on:
+      - mongo
