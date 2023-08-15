@@ -1,0 +1,5 @@
+run:
+	go run ./cmd
+mock:
+	mockgen -destination repository/mocks/mock.go tzregion/repository/mongodb TodoStorage
+.PHONY: mock run

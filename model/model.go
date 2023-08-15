@@ -1,10 +1,15 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 type Todo struct {
-	ID       string    `json:"id,omitempty" bson:"_id,omitempty"`
-	Title    string    `json:"title" validate:"required,max=200"`
-	ActiveAt time.Time `json:"activeAt" validate:"required"`
-	Status   string    `json:"status"`
+	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	Title     string             `json:"title" bson:"title"`
+	ActiveAt  time.Time          `json:"activeAt" bson:"activeAt"`
+	CreatedAt time.Time          `json:"createdAt" bson:"createdAt"`
+	Status    string             `json:"status" bson:"status"`
 }

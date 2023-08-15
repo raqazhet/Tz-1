@@ -15,7 +15,3 @@ func NewValidateService() *ValidateService {
 func (s *ValidateService) validateStruct(data interface{}) error {
 	return s.validate.Struct(data)
 }
-
-func (s *ValidateService) validateVariable(data interface{}, tag string) error {
-	return s.validate.Var(data, tag)
-}

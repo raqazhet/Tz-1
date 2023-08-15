@@ -8,17 +8,10 @@ import (
 	"tzregion/model"
 	"tzregion/repository"
 
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 )
 
-type ServiceTodo interface {
-	CreateTodo(ctx context.Context, todo *model.Todo) error
-	UpdateTodoById(ctx context.Context, Id string, todo *model.Todo) error
-	DeleteTodoById(ctx context.Context, id string) error
-	MarkAsDone(ctx context.Context, Id string) error
-	FindAll(ctx context.Context, status string) ([]*model.Todo, error)
-	// GetByTitleAndActiveAt(ctx context.Context, title string, activeAt time.Time) (*model.Todo, error)
-}
 type AllTodService struct {
 	validate *ValidateService
 	repo     *repository.Storage
@@ -33,15 +26,21 @@ func NewAllTodoService(repo *repository.Storage, l *zap.Logger, validate *Valida
 	}
 }
 
+type ServiceTodo interface {
+	CreateTodo(ctx context.Context, todo *model.Todo) error
+	UpdateTodoById(ctx context.Context, Id string, todo *model.Todo) error
+	DeleteTodoById(ctx context.Context, id string) error
+	MarkAsDone(ctx context.Context, Id string, status string) error
+	FindAll(ctx context.Context, status string) ([]*model.Todo, error)
+	// GetByTitleAndActiveAt(ctx context.Context, title string, activeAt time.Time) (*model.Todo, error)
+}
+
 func (s *AllTodService) CreateTodo(ctx context.Context, todo *model.Todo) error {
 	if err := s.validate.validateStruct(todo); err != nil {
 		s.l.Error("validate error", zap.Error(err))
 		return err
 	}
-	existingTodo, err := s.repo.FindByTitleAndActiveAt(ctx, todo.Title, todo.ActiveAt)
-	if err != nil {
-		return err
-	}
+	existingTodo, _ := s.repo.FindByTitle(ctx, todo.Title)
 	if existingTodo != nil {
 		return errors.New("todo already exists")
 	}
@@ -49,51 +48,64 @@ func (s *AllTodService) CreateTodo(ctx context.Context, todo *model.Todo) error 
 }
 
 func (s *AllTodService) UpdateTodoById(ctx context.Context, Id string, todo *model.Todo) error {
-	if err := s.validate.validateVariable(Id, "num"); err != nil {
-		s.l.Error("validate error", zap.Error(err))
-		return err
-	}
 	if err := s.validate.validateStruct(todo); err != nil {
 		s.l.Error("validate error", zap.Error(err))
 		return err
 	}
-	existingTodo, err := s.repo.FindByTitleAndActiveAt(ctx, todo.Title, todo.ActiveAt)
+	// Create a new ObjectID from the string ID
+	objectID, err := primitive.ObjectIDFromHex(Id)
 	if err != nil {
+		s.l.Error("convert id toObjectID", zap.Error(err))
 		return err
 	}
-	if existingTodo != nil && existingTodo.ID == Id {
-		return errors.New("todo with the same title and activeAt already exists")
-	}
-	return s.repo.UpdateTodoById(ctx, Id, todo)
+	todo.Status = "active"
+	return s.repo.UpdateTodoById(ctx, objectID, todo)
 }
 
 func (s *AllTodService) DeleteTodoById(ctx context.Context, id string) error {
-	if err := s.validate.validateVariable(id, "num"); err != nil {
-		s.l.Error("validate err", zap.Error(err))
+	// Create a new ObjectID from the string ID
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		s.l.Error("convert id toObjectID", zap.Error(err))
 		return err
 	}
-	return s.repo.DeleteTodoById(ctx, id)
+	return s.repo.DeleteTodoById(ctx, objectID)
 }
 
-func (s *AllTodService) MarkAsDone(ctx context.Context, id string) error {
-	if err := s.validate.validateVariable(id, "num"); err != nil {
-		s.l.Error("validate err", zap.Error(err))
+func (s *AllTodService) MarkAsDone(ctx context.Context, id, status string) error {
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		s.l.Error("convert id todoObjectID", zap.Error(err))
 		return err
 	}
-	todo, err := s.repo.FindByTitleAndActiveAt(ctx, id, time.Time{})
+	todo, err := s.repo.FindTodoById(ctx, objectID)
 	if err != nil {
 		return err
 	}
 	if todo == nil {
 		return errors.New("todo not found")
 	}
-	todo.Status = "done"
-	return s.repo.UpdateTodoById(ctx, id, todo)
+	if status == "" {
+		status = "done"
+	}
+	todo.Status = status
+	return s.repo.UpdateTodoById(ctx, objectID, todo)
 }
 
 func (s *AllTodService) FindAll(ctx context.Context, status string) ([]*model.Todo, error) {
-	if status != "done" {
-		status = "active"
+	todos, err := s.repo.TodoStorage.FindAll(ctx, status)
+	if err != nil {
+		s.l.Error("findAll service err", zap.Error(err))
+		return nil, err
 	}
-	return s.repo.FindAll(ctx, status)
+	for _, todo := range todos {
+		if isWeekend(todo.ActiveAt) {
+			todo.Title = "Выходной - " + todo.Title
+		}
+	}
+	return todos, nil
+}
+
+func isWeekend(date time.Time) bool {
+	return date.Weekday() == time.Saturday || date.Weekday() == time.Sunday
 }

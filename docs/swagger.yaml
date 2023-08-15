@@ -1,0 +1,161 @@
+basePath: /
+definitions:
+  handler.Todo:
+    properties:
+      activeAt:
+        type: string
+      title:
+        maxLength: 200
+        type: string
+    required:
+    - activeAt
+    - title
+    type: object
+  model.Todo:
+    properties:
+      activeAt:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+    type: object
+host: localhost:8000
+info:
+  contact: {}
+  description: API server for todolist Application
+  title: QR
+  version: "1.0"
+paths:
+  /todos:
+    post:
+      consumes:
+      - application/json
+      description: Create a new todo item
+      parameters:
+      - description: Todo object
+        in: body
+        name: todo
+        required: true
+        schema:
+          $ref: '#/definitions/handler.Todo'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create a new todo
+  /todos/{id}:
+    delete:
+      description: Delete an existing todo item by ID
+      parameters:
+      - description: Todo ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Delete a todo by ID
+    put:
+      consumes:
+      - application/json
+      description: Update an existing todo item
+      parameters:
+      - description: Todo ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Todo object
+        in: body
+        name: todo
+        required: true
+        schema:
+          $ref: '#/definitions/handler.Todo'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Update a todo
+  /todos/{id}/done/{done}:
+    put:
+      description: Mark a todo as done or undone
+      parameters:
+      - description: Todo ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Done status (true/false)
+        in: path
+        name: done
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Mark a todo as done
+  /todos/{status}:
+    get:
+      description: Find all todos based on status
+      parameters:
+      - description: Todo status (active/done)
+        in: path
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Todo'
+            type: array
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Find all todos
+swagger: "2.0"

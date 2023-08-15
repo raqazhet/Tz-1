@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"tzregion/config"
 	"tzregion/repository"
@@ -17,6 +19,13 @@ import (
 
 	"go.uber.org/zap"
 )
+
+// @title  QR
+// @version 1.0
+// @description API server for todolist Application
+
+// @host localhost:8000
+// @BasePath /
 
 func main() {
 	if err := run(); err != nil {
@@ -38,17 +47,21 @@ func run() error {
 	if err != nil {
 		return err
 	}
+
 	defer func(*zap.Logger) {
 		err := l.Sync()
 		if err != nil {
 			log.Fatal(err)
 		}
 	}(l)
-	// repo layer
-	db, err := mongodb.Dial(constructorUri(cfg))
+	ctxx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client, err := mongodb.Dial(ctxx, cfg, constructorUri(cfg))
 	if err != nil {
 		return err
 	}
+	defer client.Disconnect(ctxx)
+	db := client.Database(cfg.DBName)
 	repotodo := repository.NewRepository(db)
 	// service layer
 	serviceTodo := service.NewService(repotodo, l)
@@ -75,6 +88,6 @@ func run() error {
 }
 
 func constructorUri(cfg *config.Config) string {
-	uri := fmt.Sprintf("mongodb://%s:%s@%s:%s/%s", cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName)
+	uri := fmt.Sprintf("mongodb://%s:%s", cfg.DBHost, cfg.DBPort)
 	return uri
 }

@@ -2,7 +2,6 @@ package mongodb
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -10,9 +9,19 @@ import (
 	"tzregion/model"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+type TodoStorage interface {
+	CreateTodo(ctx context.Context, todo *model.Todo) error
+	UpdateTodoById(ctx context.Context, Id primitive.ObjectID, todo *model.Todo) error
+	DeleteTodoById(ctx context.Context, id primitive.ObjectID) error
+	FindAll(ctx context.Context, status string) ([]*model.Todo, error)
+	FindByTitle(ctx context.Context, title string) (*model.Todo, error)
+	FindTodoById(ctx context.Context, id primitive.ObjectID) (*model.Todo, error)
+}
 
 const collectionName = "todos"
 
@@ -40,13 +49,13 @@ func NewTodoRepository(db *mongo.Database) *TodoRepo {
 func (r *TodoRepo) CreateTodo(ctx context.Context, todo *model.Todo) error {
 	_, err := r.collection.InsertOne(ctx, todo)
 	if err != nil {
-		log.Printf("failed to create err: %v", err)
+		fmt.Println("failed to create todo err ", err)
 		return err
 	}
 	return nil
 }
 
-func (r *TodoRepo) UpdateTodoById(ctx context.Context, Id string, todo *model.Todo) error {
+func (r *TodoRepo) UpdateTodoById(ctx context.Context, Id primitive.ObjectID, todo *model.Todo) error {
 	filter := bson.M{"_id": Id}
 	updateQuery := bson.M{"$set": bson.M{"title": todo.Title, "activeAt": todo.ActiveAt, "status": todo.Status}}
 	res, err := r.collection.UpdateOne(ctx, filter, updateQuery)
@@ -55,12 +64,13 @@ func (r *TodoRepo) UpdateTodoById(ctx context.Context, Id string, todo *model.To
 		return err
 	}
 	if res.MatchedCount == 0 {
+		fmt.Println("todo not found by id")
 		return fmt.Errorf("todo with ID %s not found", Id)
 	}
 	return nil
 }
 
-func (r *TodoRepo) DeleteTodoById(ctx context.Context, id string) error {
+func (r *TodoRepo) DeleteTodoById(ctx context.Context, id primitive.ObjectID) error {
 	filter := bson.M{"_id": id}
 	res, err := r.collection.DeleteOne(ctx, filter)
 	if err != nil {
@@ -73,50 +83,64 @@ func (r *TodoRepo) DeleteTodoById(ctx context.Context, id string) error {
 	return nil
 }
 
-// func (r *TodoRepo) UpdateStatusDone(ctx context.Context, Id, status string) error {
-// 	filter := bson.M{"_id": Id}
-// 	update := bson.M{"$set": bson.M{"status": "done"}}
-// 	res, err := r.collection.UpdateOne(ctx, filter, update)
-// 	if err != nil {
-// 		log.Printf("failed to status done: %v", err)
-// 		return err
-// 	}
-// 	if res.MatchedCount == 0 {
-// 		return err
-// 	}
-// 	return nil
-// }
+func (r *TodoRepo) FindByTitle(ctx context.Context, title string) (*model.Todo, error) {
+	filter := bson.M{"title": title}
+	var todo model.Todo
+	err := r.collection.FindOne(ctx, filter).Decode(&todo)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			fmt.Println("No document found")
+			return nil, err
+		}
+		fmt.Println("Failed to execute query:", err)
+		return nil, err
+	}
+	return &todo, nil
+}
+
+func (r *TodoRepo) FindTodoById(ctx context.Context, id primitive.ObjectID) (*model.Todo, error) {
+	var todo model.Todo
+	filter := bson.M{"_id": id}
+	if err := r.collection.FindOne(ctx, filter).Decode(&todo); err != nil {
+		fmt.Printf("find todo by id: %v", err)
+		return nil, err
+	}
+	return &todo, nil
+}
 
 // FindAll todolists Where status =Active and activeAt<=time.now()
 func (r *TodoRepo) FindAll(ctx context.Context, status string) ([]*model.Todo, error) {
 	filter := bson.M{}
-	if status != "" {
-		filter["status"] = status
+	now := time.Now()
+	findOptions := options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}})
+	if status == "active" {
+		filter = bson.M{
+			"status":   status,
+			"activeAt": bson.M{"$lte": now},
+		}
+	} else {
+		filter = bson.M{"status": status}
 	}
-	options := options.Find()
-	options.SetSort(bson.M{"activeAt": 1})
-	cur, err := r.collection.Find(ctx, filter, options)
+	cursor, err := r.collection.Find(ctx, filter, findOptions)
 	if err != nil {
-		log.Printf("Failed to find todos: %v", err)
+		fmt.Println("Failed to execute query:", err)
 		return nil, err
 	}
+	defer cursor.Close(ctx)
 	var todos []*model.Todo
-	if err := cur.All(ctx, &todos); err != nil {
-		log.Printf("Failed to decode todos: %v", err)
+	for cursor.Next(ctx) {
+		var todo model.Todo
+		err := cursor.Decode(&todo)
+		if err != nil {
+			fmt.Println("Failed to decode document:", err)
+			return nil, err
+		}
+		todos = append(todos, &todo)
+	}
+
+	if err := cursor.Err(); err != nil {
+		fmt.Println("Cursor error:", err)
 		return nil, err
 	}
 	return todos, nil
-}
-
-func (r *TodoRepo) FindByTitleAndActiveAt(ctx context.Context, title string, activeAt time.Time) (*model.Todo, error) {
-	filter := bson.M{"title": title, "activeAt": activeAt}
-	var todo model.Todo
-	err := r.collection.FindOne(ctx, filter).Decode(&todo)
-	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, err
-		}
-		return nil, err
-	}
-	return &todo, nil
 }
