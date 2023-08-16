@@ -16,19 +16,19 @@ type Todo struct {
 	ActiveAt utils.CivilTime `json:"activeAt" validate:"required,gte"`
 }
 
-// @Summary Create a new todo
-// @Description Create a new todo item
+// @Summary Create a new todo item
+// @Description Create a new todo item with the provided details
+// @Tags Todo
 // @Accept json
 // @Produce json
 // @Param todo body Todo true "Todo object"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} map[string]interface{}
-// @Failure 404 {object} map[string]interface{}
-// @Router /todos [post]
+// @Success 204 {object} model.SuccessResponse
+// @Failure 400 {object} model.ErrorResponse
+// @Router /api/todo-list/tasks [post]
 func (h *Handler) CreateTodo(ctx *gin.Context) {
 	var todo Todo
 	if err := ctx.BindJSON(&todo); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		ctx.JSON(http.StatusBadRequest, model.ErrorResponse{Error: "invalid request body", Details: err.Error()})
 		return
 	}
 	ctxx, cancel := context.WithTimeout(context.Background(), _defaultContextTimeOut)
@@ -41,28 +41,28 @@ func (h *Handler) CreateTodo(ctx *gin.Context) {
 		Status:    "active",
 	}
 	if err := h.service.Todo.CreateTodo(ctxx, &todoModel); err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": "failed to create error", "details": err.Error()})
+		ctx.JSON(http.StatusNotFound, model.ErrorResponse{Error: "failed to create", Details: err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"message": "Todo item created successfully"})
+	ctx.JSON(http.StatusNoContent, model.SuccessResponse{Message: "todo item created succesfully"})
 }
 
-// @Summary Update a todo
-// @Description Update an existing todo item
+// @Summary Update a todo item
+// @Description Update a todo item with the provided ID and details
+// @Tags Todo
 // @Accept json
 // @Produce json
 // @Param id path string true "Todo ID"
-// @Param todo body Todo true "Todo object"
-// @Success 204 "No Content"
-// @Failure 400 {object} map[string]interface{}
-// @Failure 404 {object} map[string]interface{}
-// @Router /todos/{id} [put]
+// @Param todo body Todo true "Updated todo object"
+// @Success 204 {object} model.SuccessResponse
+// @Failure 400 {object} model.ErrorResponse
+// @Router /api/todo-list/tasks/{id} [put]
 func (h *Handler) UpdateTodo(ctx *gin.Context) {
 	id := ctx.Param("id")
 	var todo Todo
 	if err := ctx.BindJSON(&todo); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		ctx.JSON(http.StatusBadRequest, model.ErrorResponse{Error: "invalid request body", Details: err.Error()})
 		return
 	}
 	ctxx, cancel := context.WithTimeout(context.Background(), _defaultContextTimeOut)
@@ -72,55 +72,63 @@ func (h *Handler) UpdateTodo(ctx *gin.Context) {
 		ActiveAt: time.Time(todo.ActiveAt),
 	}
 	if err := h.service.Todo.UpdateTodoById(ctxx, id, &todoModel); err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"update todo err: ": err.Error()})
+		ctx.JSON(http.StatusNotFound, model.ErrorResponse{Error: "update todo err", Details: err.Error()})
 		return
 	}
-	ctx.JSON(http.StatusNoContent, gin.H{"succes": "todo updated!"})
+	ctx.JSON(http.StatusNoContent, model.SuccessResponse{Message: "todo updated"})
 }
 
-// @Summary Delete a todo by ID
-// @Description Delete an existing todo item by ID
+// @Summary Delete a todo item by ID
+// @Description Delete a todo item with the provided ID
+// @Tags Todo
+// @Accept json
+// @Produce json
 // @Param id path string true "Todo ID"
-// @Success 204 "No Content"
-// @Failure 404 {object} map[string]interface{}
-// @Router /todos/{id} [delete]
+// @Success 204 {object} model.SuccessResponse
+// @Failure 404 {object} model.ErrorResponse
+// @Router /api/todo-list/tasks/{id} [delete]
 func (h *Handler) DeleteTodoById(ctx *gin.Context) {
 	id := ctx.Param("id")
 	ctxx, cancel := context.WithTimeout(context.Background(), _defaultContextTimeOut)
 	defer cancel()
 	if err := h.service.Todo.DeleteTodoById(ctxx, id); err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusNotFound, model.ErrorResponse{Error: "delete err", Details: err.Error()})
 		return
 	}
-	ctx.JSON(http.StatusNoContent, gin.H{"succes": "deleted todo by id"})
+	ctx.JSON(http.StatusNoContent, model.SuccessResponse{Message: "delete todo by id"})
 }
 
-// @Summary Mark a todo as done
-// @Description Mark a todo as done or undone
+// @Summary Mark a todo item as done
+// @Description Mark a todo item with the provided ID as done or not done
+// @Tags Todo
+// @Accept json
+// @Produce json
 // @Param id path string true "Todo ID"
-// @Param done path string true "Done status (true/false)"
-// @Success 204 "No Content"
-// @Failure 404 {object} map[string]interface{}
-// @Router /todos/{id}/done/{done} [put]
+// @Param done path string true "Todo status (done or not done)"
+// @Success 204 {object} model.SuccessResponse
+// @Failure 404 {object} model.ErrorResponse
+// @Router /api/todo-list/tasks/{id}/status/{done} [put]
 func (h *Handler) MarkAsDone(ctx *gin.Context) {
 	id := ctx.Param("id")
 	status := ctx.Param("done")
 	ctxx, cancel := context.WithTimeout(context.Background(), _defaultContextTimeOut)
 	defer cancel()
 	if err := h.service.Todo.MarkAsDone(ctxx, id, status); err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusNotFound, model.ErrorResponse{Error: "service err", Details: err.Error()})
 		return
 	}
-	ctx.JSON(http.StatusNoContent, gin.H{"message": "todo successfully done"})
+	ctx.JSON(http.StatusNoContent, model.SuccessResponse{Message: "todo succesfully done"})
 }
 
-// @Summary Find all todos
-// @Description Find all todos based on status
-// @Param status path string false "Todo status (active/done)"
+// @Summary Get all todo items by status
+// @Description Get a list of all todo items based on the provided status
+// @Tags Todo
+// @Accept json
 // @Produce json
-// @Success 200 {array} model.Todo
-// @Failure 404 {object} map[string]interface{}
-// @Router /todos/{status} [get]
+// @Param status path string true "Todo status (active, done, or other)"
+// @Success 200 {object} []model.Todo
+// @Failure 404 {object} model.ErrorResponse
+// @Router /api/todo-list/tasks/{status} [get]
 func (h *Handler) FindAllTodos(ctx *gin.Context) {
 	status := ctx.Param("status")
 	if status == "" {
@@ -130,12 +138,11 @@ func (h *Handler) FindAllTodos(ctx *gin.Context) {
 	defer cancel()
 	todos, err := h.service.Todo.FindAll(ctxx, status)
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"not found todos": err.Error()})
+		ctx.JSON(http.StatusNotFound, model.ErrorResponse{Error: "not found todos", Details: err.Error()})
 		return
 	}
-	massiv := [1]string{""}
 	if todos == nil {
-		ctx.JSON(http.StatusOK, massiv)
+		ctx.JSON(http.StatusOK, []*model.Todo{})
 	} else {
 		ctx.JSON(http.StatusOK, todos)
 	}

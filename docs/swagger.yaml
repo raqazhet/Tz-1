@@ -11,6 +11,18 @@ definitions:
     - activeAt
     - title
     type: object
+  model.ErrorResponse:
+    properties:
+      details:
+        type: string
+      error:
+        type: string
+    type: object
+  model.SuccessResponse:
+    properties:
+      message:
+        type: string
+    type: object
   model.Todo:
     properties:
       activeAt:
@@ -31,11 +43,11 @@ info:
   title: QR
   version: "1.0"
 paths:
-  /todos:
+  /api/todo-list/tasks:
     post:
       consumes:
       - application/json
-      description: Create a new todo item
+      description: Create a new todo item with the provided details
       parameters:
       - description: Todo object
         in: body
@@ -46,51 +58,53 @@ paths:
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "204":
+          description: No Content
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/model.SuccessResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Create a new todo
-  /todos/{id}:
+            $ref: '#/definitions/model.ErrorResponse'
+      summary: Create a new todo item
+      tags:
+      - Todo
+  /api/todo-list/tasks/{id}:
     delete:
-      description: Delete an existing todo item by ID
+      consumes:
+      - application/json
+      description: Delete a todo item with the provided ID
       parameters:
       - description: Todo ID
         in: path
         name: id
         required: true
         type: string
+      produces:
+      - application/json
       responses:
         "204":
           description: No Content
+          schema:
+            $ref: '#/definitions/model.SuccessResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties: true
-            type: object
-      summary: Delete a todo by ID
+            $ref: '#/definitions/model.ErrorResponse'
+      summary: Delete a todo item by ID
+      tags:
+      - Todo
     put:
       consumes:
       - application/json
-      description: Update an existing todo item
+      description: Update a todo item with the provided ID and details
       parameters:
       - description: Todo ID
         in: path
         name: id
         required: true
         type: string
-      - description: Todo object
+      - description: Updated todo object
         in: body
         name: todo
         required: true
@@ -101,47 +115,55 @@ paths:
       responses:
         "204":
           description: No Content
+          schema:
+            $ref: '#/definitions/model.SuccessResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Update a todo
-  /todos/{id}/done/{done}:
+            $ref: '#/definitions/model.ErrorResponse'
+      summary: Update a todo item
+      tags:
+      - Todo
+  /api/todo-list/tasks/{id}/status/{done}:
     put:
-      description: Mark a todo as done or undone
+      consumes:
+      - application/json
+      description: Mark a todo item with the provided ID as done or not done
       parameters:
       - description: Todo ID
         in: path
         name: id
         required: true
         type: string
-      - description: Done status (true/false)
+      - description: Todo status (done or not done)
         in: path
         name: done
         required: true
         type: string
+      produces:
+      - application/json
       responses:
         "204":
           description: No Content
+          schema:
+            $ref: '#/definitions/model.SuccessResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties: true
-            type: object
-      summary: Mark a todo as done
-  /todos/{status}:
+            $ref: '#/definitions/model.ErrorResponse'
+      summary: Mark a todo item as done
+      tags:
+      - Todo
+  /api/todo-list/tasks/{status}:
     get:
-      description: Find all todos based on status
+      consumes:
+      - application/json
+      description: Get a list of all todo items based on the provided status
       parameters:
-      - description: Todo status (active/done)
+      - description: Todo status (active, done, or other)
         in: path
         name: status
+        required: true
         type: string
       produces:
       - application/json
@@ -155,7 +177,8 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties: true
-            type: object
-      summary: Find all todos
+            $ref: '#/definitions/model.ErrorResponse'
+      summary: Get all todo items by status
+      tags:
+      - Todo
 swagger: "2.0"
